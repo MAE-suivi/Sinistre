@@ -29,7 +29,7 @@
   .kpi-label{font-size:0.72rem;color:var(--text-soft);margin-top:3px;}
   .phase-row{display:flex;align-items:center;gap:12px;padding:9px 4px;}
   .phase-num{width:26px;height:26px;border-radius:999px;background:var(--navy);color:#fff;font-size:0.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .phase-label{width:300px;font-size:0.86rem;color:#334155;flex-shrink:0;font-weight:600;}
+  .phase-label{width:340px;font-size:0.85rem;color:#334155;flex-shrink:0;font-weight:600;line-height:1.25;white-space:normal;}
   .phase-bar-track{flex:1;background:#eef1f5;border-radius:6px;height:22px;overflow:hidden;}
   .phase-bar-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--navy-light),var(--navy));transition:width .4s ease;}
   .phase-count{width:60px;text-align:right;font-size:0.88rem;font-weight:800;color:var(--navy-dark);flex-shrink:0;}
@@ -45,6 +45,9 @@
   .badge-p5{background:#dbeafe;color:#1d4ed8;}
   .badge-p6{background:#d1fae5;color:#047857;}
   .badge-p7{background:#e5e7eb;color:#374151;}
+  .badge-p8{background:#cffafe;color:#0e7490;}
+  .badge-p9{background:#fef9c3;color:#854d0e;}
+  .badge-p10{background:#ecfccb;color:#3f6212;}
   .filter-input, .filter-select{border:1px solid #d9dee3; border-radius:8px; padding:8px 11px; font-size:0.82rem; background:#fff;}
   .filter-input:focus,.filter-select:focus{outline:none; border-color:var(--navy); box-shadow:0 0 0 3px rgba(14,130,84,0.12);}
   .btn-primary{background:var(--navy);color:#fff;padding:10px 20px;border-radius:10px;font-weight:600;font-size:0.9rem;cursor:pointer;border:none;}
@@ -59,6 +62,7 @@
     position:relative;
     overflow:hidden;
   }
+  #loginScreen.hidden{display:none;}
   #loginScreen::before{
     content:"";
     position:absolute; inset:0;
@@ -136,7 +140,7 @@
       <h2 class="text-base font-bold flex items-center gap-2 mb-1" style="color:var(--navy-dark);">
         <i data-lucide="git-commit-horizontal" style="width:18px;height:18px;color:var(--navy);"></i> État d'avancement
       </h2>
-      <p class="text-xs text-slate-400 mb-4">Dossiers ouverts, répartis sur les 7 étapes du processus</p>
+      <p class="text-xs text-slate-400 mb-4">Dossiers ouverts, répartis sur les 10 étapes du processus</p>
       <div id="phaseList"></div>
     </div>
 
@@ -179,38 +183,53 @@
 <script>
 lucide.createIcons();
 
-/* ===================== 1. MAPPING DES 7 PHASES ===================== */
+/* ===================== 1. MAPPING DES 10 ÉTAPES ===================== */
 const PHASES = [
-  "Établissement du devis",
+  "En attente de présentation de l'assuré au garage",
+  "Devis en cours d'établissement",
   "En attente de validation expert / assuré",
-  "Achat des pièces en cours",
+  "Achat et regroupement des pièces de rechange",
   "En attente de rendez-vous de réparation",
+  "Rendez-vous de réparation fixé",
   "En cours de réparation",
-  "Fin de réparation",
-  "Réception bon de sortie et sortie du véhicule"
+  "En cours de facturation",
+  "En attente du rapport d'expertise",
+  "Réception du bon de sortie et sortie du véhicule"
 ];
 
-// Associe chaque libellé de tâche détaillée (venant d'Odoo) à l'une des 7 phases
+// Associe chaque libellé de tâche détaillée (venant d'Odoo) à l'une des 10 étapes
 const TACHE_TO_PHASE = {
-  "Prise Photos (AV)": 0,
+  "Réception et Ouverture Dossier": 0,
   "Prise RDV pour Devis & Affectation Adhérent": 0,
-  "Préparation Devis MO + PR": 0,
-  "Identification Références Pièces": 0,
-  "Confirmation de la structure d'achat": 0,
+  "Prise Photos (AV)": 0,
+
+  "Préparation Devis MO + PR": 1,
+  "Identification Références Pièces": 1,
+  "Confirmation Disponibilité / Prix Pièces": 1,
   "Envoi devis pour validation Expert": 1,
-  "Devis Validé par l'expert": 2, // devis validé -> on entre en phase achat pièces
-  "Commande et Réservation Pièces de rechange": 2,
-  "Confirmation Disponibilité / Prix Pièces": 2,
-  "Réception Pièces de Rechange": 2,
-  "Livraison PR au Garage": 2,
-  "Prise RDV Réparation": 3,
-  "Bon de réception du Véhicule": 3,
-  "Réparation: Préparation à la Peinture": 4,
-  "Réparation: Peinture": 4,
-  "Réparation: Finition": 4,
-  "Fin Réparation": 5,
-  "Prise RDV pour Récupération Véhicule": 6,
-  "Bon de Sortie": 6
+
+  "Devis Validé par l'expert": 2,
+
+  "Confirmation de la structure d'achat": 3,
+  "Commande et Réservation Pièces de rechange": 3,
+  "Réception Pièces de Rechange": 3,
+
+  "Prise RDV Réparation": 4,
+
+  "Livraison PR au Garage": 5,
+  "Bon de réception du Véhicule": 5,
+
+  "Réparation: Dépose/Pose": 6,
+  "Réparation: Préparation à la Peinture": 6,
+  "Réparation: Peinture": 6,
+  "Réparation: Finition": 6,
+  "Fin Réparation": 6,
+
+  "Réception Facture Adhérent": 7,
+
+  "Bon de Sortie": 8,
+
+  "Prise RDV pour Récupération Véhicule": 9
 };
 
 function phaseOf(tache){
@@ -413,8 +432,8 @@ function renderKPI(data){
   const total = data.length;
   const ouverts = data.filter(d => d.etat === 'Ouvert');
   const annules = data.filter(d => d.etat === 'Annulé').length;
-  const enAttenteValidation = ouverts.filter(d => phaseOf(d.tache) === 1).length;
-  const enReparation = ouverts.filter(d => phaseOf(d.tache) === 4).length;
+  const enAttenteValidation = ouverts.filter(d => phaseOf(d.tache) === 2).length;
+  const enReparation = ouverts.filter(d => phaseOf(d.tache) === 6).length;
 
   const kpis = [
     {label:'Dossiers totaux', value: total, icon:'folder', color:'#0e8254'},
