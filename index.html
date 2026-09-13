@@ -92,10 +92,12 @@
       <p class="text-xs text-slate-400 mt-1">MAE ASSURANCES — Portail agences</p>
     </div>
     <label class="block text-xs font-semibold text-slate-500 mb-1">Code agence</label>
-    <input id="loginAgence" type="text" placeholder="Ex: 151 ou 151 Agence Sousse Erriadh" class="filter-input w-full mb-4" style="padding:11px 14px;">
+    <input id="loginAgence" type="text" placeholder="Ex: 151 ou 151 Agence Sousse Erriadh" class="filter-input w-full mb-3" style="padding:11px 14px;">
+    <input id="loginPassword" type="password" placeholder="Mot de passe (si défini pour votre agence)" class="filter-input w-full mb-4" style="padding:11px 14px;">
     <p class="text-[11px] text-slate-400 mb-4">Astuce : entrez seulement le code numérique de votre agence (ex : <b>151</b>). L'agent AUTOP se connecte avec le code <b>AUTOP</b>.</p>
     <button id="btnLogin" class="btn-primary w-full">Accéder au suivi</button>
     <p id="loginError" class="text-xs text-red-600 mt-3 hidden">Code agence introuvable dans les dossiers actuels. Vérifiez le code ou contactez AUTOP.</p>
+    <p id="loginPassError" class="text-xs text-red-600 mt-3 hidden">Mot de passe incorrect pour cette agence.</p>
     <p id="loginLoading" class="text-xs text-slate-400 mt-3">Chargement des données…</p>
   </div>
 </div>
@@ -294,9 +296,26 @@ async function replaceAllData(rows){
 }
 
 let ALL_DATA = [];
+let AGENCE_PASSWORDS = {}; // { 'CODE': 'motdepasse' } — chargé depuis Supabase
+
+// Récupère les mots de passe définis pour chaque agence (table optionnelle :
+// si elle n'existe pas encore, ou si une agence n'y figure pas, la connexion
+// se fait sans mot de passe pour cette agence — transition en douceur).
+async function loadPasswords(){
+  try {
+    const { data, error } = await sb.from('agence_passwords').select('*');
+    if (error || !data) return {};
+    const map = {};
+    data.forEach(r => { if (r.agence_code) map[String(r.agence_code).toUpperCase()] = r.password; });
+    return map;
+  } catch(e) {
+    return {};
+  }
+}
 
 (async function initApp(){
   ALL_DATA = await loadData();
+  AGENCE_PASSWORDS = await loadPasswords();
   const loadingEl = document.getElementById('loginLoading');
   if (loadingEl) loadingEl.classList.add('hidden');
 })();
@@ -311,9 +330,11 @@ function agenceCode(a){
 /* ===================== 3. LOGIN ===================== */
 document.getElementById('btnLogin').addEventListener('click', doLogin);
 document.getElementById('loginAgence').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+document.getElementById('loginPassword').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
 
 async function doLogin(){
   const val = document.getElementById('loginAgence').value.trim();
+  const pass = document.getElementById('loginPassword').value;
   if(!val){ return; }
 
   // Si les données ne sont pas encore chargées (première visite / réseau lent),
@@ -322,21 +343,31 @@ async function doLogin(){
     document.getElementById('loginLoading').classList.remove('hidden');
     document.getElementById('loginLoading').textContent = 'Connexion à la base de données…';
     ALL_DATA = await loadData();
+    AGENCE_PASSWORDS = await loadPasswords();
     document.getElementById('loginLoading').classList.add('hidden');
   }
 
-  if(val.toUpperCase() === 'AUTOP'){
-    CURRENT_AGENCE = 'AUTOP';
-    enterApp();
-    return;
-  }
-  const code = val.split(' ')[0];
-  const exists = ALL_DATA.some(d => agenceCode(d.agence) === code);
-  if(!exists){
-    document.getElementById('loginError').classList.remove('hidden');
-    return;
-  }
   document.getElementById('loginError').classList.add('hidden');
+  document.getElementById('loginPassError').classList.add('hidden');
+
+  const code = (val.toUpperCase() === 'AUTOP') ? 'AUTOP' : val.split(' ')[0];
+
+  if (code !== 'AUTOP') {
+    const exists = ALL_DATA.some(d => agenceCode(d.agence) === code);
+    if(!exists){
+      document.getElementById('loginError').classList.remove('hidden');
+      return;
+    }
+  }
+
+  // Vérification du mot de passe, uniquement si un mot de passe est défini
+  // pour ce code dans Supabase (sinon accès libre, comme avant).
+  const expectedPass = AGENCE_PASSWORDS[code];
+  if (expectedPass && pass !== expectedPass) {
+    document.getElementById('loginPassError').classList.remove('hidden');
+    return;
+  }
+
   CURRENT_AGENCE = code;
   enterApp();
 }
@@ -346,6 +377,7 @@ document.getElementById('btnLogout').addEventListener('click', () => {
   document.getElementById('app').classList.add('hidden');
   document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('loginAgence').value = '';
+  document.getElementById('loginPassword').value = '';
 });
 
 function enterApp(){
