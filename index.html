@@ -127,7 +127,7 @@
         <i data-lucide="upload-cloud" style="width:17px;height:17px;color:var(--navy);"></i>
         <span class="text-sm font-bold text-slate-700">Import des données (agent AUTOP)</span>
       </div>
-      <p class="text-xs text-slate-500 mb-3">Importez le fichier Excel exporté d'Odoo. Colonnes attendues : ref, date, agence, assure, adherent, marque, modele, plaque, tache, expert, etat, garantie.</p>
+      <p class="text-xs text-slate-500 mb-3">Importez le fichier Excel exporté d'Odoo (colonnes : Référence interne, Nom, Date Ouverture Dossier, Agence, Assuré, Adhérent, Véhicule, Tâche courante, Expert, État).</p>
       <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" class="text-sm mb-2">
       <p class="text-xs text-slate-400" id="importStatus"></p>
     </div>
@@ -159,7 +159,7 @@
         <table class="data-table" id="dataTable">
           <thead>
             <tr>
-              <th>Référence</th>
+              <th>Référence Sinistre</th>
               <th>Date</th>
               <th>Assuré</th>
               <th>Véhicule / Plaque</th>
@@ -252,7 +252,7 @@ const EMBEDDED_DATA = [{"ref": "DS3666/2026", "nom": "225013931", "date": "2026-
 // utilise partout ailleurs dans l'app (agenceCode en camelCase).
 function fromSupabaseRow(row){
   return {
-    ref: row.ref, date: row.date, agence: row.agence || '',
+    ref: row.ref, nom: row.nom || '', date: row.date, agence: row.agence || '',
     agenceCode: row.agence_code || '', assure: row.assure || '',
     adherent: row.adherent || '', marque: row.marque || '',
     modele: row.modele || '', plaque: row.plaque || '',
@@ -280,7 +280,7 @@ async function replaceAllData(rows){
   if (delError) throw delError;
 
   const toInsert = rows.map(r => ({
-    ref: r.ref, date: r.date || null, agence: r.agence,
+    ref: r.ref, nom: r.nom || null, date: r.date || null, agence: r.agence,
     agence_code: r.agenceCode, assure: r.assure, adherent: r.adherent,
     marque: r.marque, modele: r.modele, plaque: r.plaque,
     tache: r.tache, expert: r.expert, etat: r.etat, garantie: r.garantie
@@ -365,6 +365,36 @@ document.getElementById('btnImportShow').addEventListener('click', () => {
 });
 
 /* ===================== 4. IMPORT EXCEL (AUTOP) → écrit dans Supabase ===================== */
+
+// Convertit une valeur de date Excel (Date JS, ou texte) en "YYYY-MM-DD"
+function toISODate(val){
+  if (!val) return '';
+  if (val instanceof Date && !isNaN(val)) {
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(val).trim();
+  // Déjà au format ISO ?
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // Format JJ/MM/AAAA
+  const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m2) return `${m2[3]}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`;
+  return s;
+}
+
+// Sépare le champ combiné "Véhicule" (ex: "RENAULT/RENAULT/705 TU 128")
+// en marque / modèle / plaque.
+function splitVehicule(val){
+  const parts = String(val || '').split('/').map(p => p.trim());
+  return {
+    marque: parts[0] || '',
+    modele: parts[1] || '',
+    plaque: parts[2] || parts.slice(2).join('/') || ''
+  };
+}
+
 document.getElementById('fileInput').addEventListener('change', function(e){
   const file = e.target.files[0];
   if(!file) return;
@@ -372,25 +402,36 @@ document.getElementById('fileInput').addEventListener('change', function(e){
   reader.onload = async function(evt){
     const statusEl = document.getElementById('importStatus');
     try {
-      const wb = XLSX.read(evt.target.result, {type:'binary'});
+      const wb = XLSX.read(evt.target.result, {type:'binary', cellDates:true});
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+
+      // Garde la garantie déjà connue pour chaque dossier (l'export Odoo
+      // "Tâches par projet" ne contient pas cette colonne : sans cette
+      // préservation, une réimportation l'effacerait pour tout le monde).
+      const garantieParRef = {};
+      ALL_DATA.forEach(d => { if (d.ref) garantieParRef[d.ref] = d.garantie || ''; });
+
       const mapped = rows.map(r => {
         const agenceVal = String(r.agence || r.Agence || '');
+        const ref = String(r.ref || r.Reference || r['Référence interne'] || r['Référence'] || '').trim();
+        const vehiculeBrut = r.vehicule || r['Véhicule'] || '';
+        const vehicule = splitVehicule(vehiculeBrut);
         return {
-          ref: String(r.ref || r.Reference || r['Référence'] || ''),
-          date: String(r.date || r.Date || ''),
+          ref: ref,
+          nom: String(r.nom || r['N° Sinistre'] || r['Numéro Sinistre'] || r['Référence Sinistre'] || r.Nom || ''),
+          date: toISODate(r.date || r.Date || r['Date Ouverture Dossier']),
           agence: agenceVal,
           agenceCode: agenceCode(agenceVal),
           assure: String(r.assure || r['Assuré'] || ''),
           adherent: String(r.adherent || r['Adhérent'] || ''),
-          marque: String(r.marque || r.Marque || ''),
-          modele: String(r.modele || r['Modèle'] || ''),
-          plaque: String(r.plaque || r.Plaque || ''),
-          tache: String(r.tache || r['Tâche'] || ''),
+          marque: String(r.marque || r.Marque || vehicule.marque || ''),
+          modele: String(r.modele || r['Modèle'] || vehicule.modele || ''),
+          plaque: String(r.plaque || r.Plaque || vehicule.plaque || ''),
+          tache: String(r.tache || r['Tâche'] || r['Tâche courante'] || ''),
           expert: String(r.expert || r.Expert || ''),
           etat: String(r.etat || r['État'] || 'Ouvert'),
-          garantie: String(r.garantie || r.Garantie || '')
+          garantie: String(r.garantie || r.Garantie || garantieParRef[ref] || '')
         };
       }).filter(r => r.ref);
 
@@ -484,6 +525,7 @@ function renderTable(data){
   if(search){
     filtered = filtered.filter(d =>
       (d.ref||'').toLowerCase().includes(search) ||
+      (d.nom||'').toLowerCase().includes(search) ||
       (d.assure||'').toLowerCase().includes(search) ||
       (d.plaque||'').toLowerCase().includes(search) ||
       (d.adherent||'').toLowerCase().includes(search)
@@ -496,7 +538,7 @@ function renderTable(data){
     const p = phaseOf(d.tache);
     return `
     <tr>
-      <td class="font-semibold" style="color:var(--navy-dark);">${d.ref}</td>
+      <td class="font-semibold" style="color:var(--navy-dark);">${d.nom || d.ref}</td>
       <td>${d.date}</td>
       <td>${d.assure}</td>
       <td>${d.marque} ${d.modele} — ${d.plaque}</td>
