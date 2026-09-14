@@ -539,7 +539,15 @@ document.getElementById('fileInput').addEventListener('change', function(e){
         };
       }).filter(r => r.ref);
 
-      if(mapped.length === 0){
+      // Déduplique par référence : si une même référence apparaît plusieurs
+      // fois dans le fichier, on garde uniquement la dernière occurrence
+      // (évite une erreur d'insertion et empêche tout doublon).
+      const dedupMap = new Map();
+      mapped.forEach(r => dedupMap.set(r.ref, r));
+      const mappedDedup = Array.from(dedupMap.values());
+      const nbDoublons = mapped.length - mappedDedup.length;
+
+      if(mappedDedup.length === 0){
         statusEl.textContent = "Aucune ligne valide trouvée. Vérifiez les en-têtes de colonnes.";
         return;
       }
@@ -548,10 +556,10 @@ document.getElementById('fileInput').addEventListener('change', function(e){
       // dossiers que la base actuelle, on demande une confirmation explicite
       // (car l'import remplace intégralement la base).
       const currentCount = ALL_DATA.length;
-      if (currentCount > 0 && mapped.length < currentCount * 0.9) {
-        const diff = currentCount - mapped.length;
+      if (currentCount > 0 && mappedDedup.length < currentCount * 0.9) {
+        const diff = currentCount - mappedDedup.length;
         const ok = confirm(
-          `Attention : la base actuelle contient ${currentCount} dossiers, mais ce fichier n'en contient que ${mapped.length}.\n\n` +
+          `Attention : la base actuelle contient ${currentCount} dossiers, mais ce fichier n'en contient que ${mappedDedup.length}.\n\n` +
           `Poursuivre l'import supprimera ${diff} dossiers qui ne sont pas dans ce fichier.\n\n` +
           `Une sauvegarde de la base actuelle va être téléchargée automatiquement avant de continuer.\n\n` +
           `Voulez-vous vraiment continuer ?`
@@ -562,15 +570,44 @@ document.getElementById('fileInput').addEventListener('change', function(e){
         }
       }
 
-      // Sécurité 2 : sauvegarde automatique de la base actuelle (CSV) avant
+      // Sécurité 2 : détecte si beaucoup de dossiers reviendraient à une
+      // étape ANTÉRIEURE à celle qu'ils ont actuellement — signe probable
+      // d'un fichier Excel obsolète (export plus ancien que les données en ligne).
+      const currentByRef = {};
+      ALL_DATA.forEach(d => { currentByRef[d.ref] = d; });
+      let regressions = 0;
+      let comparés = 0;
+      mappedDedup.forEach(nouveau => {
+        const ancien = currentByRef[nouveau.ref];
+        if (!ancien) return; // dossier nouveau, pas de comparaison possible
+        comparés++;
+        if (phaseOf(nouveau.tache) < phaseOf(ancien.tache)) regressions++;
+      });
+      if (comparés > 0 && regressions > Math.max(5, comparés * 0.1)) {
+        const ok = confirm(
+          `Attention : ${regressions} dossiers sur ${comparés} reviendraient à une étape ANTÉRIEURE à leur étape actuelle.\n\n` +
+          `Cela ressemble à un fichier Excel obsolète (export plus ancien que les données déjà en ligne).\n\n` +
+          `Une sauvegarde de la base actuelle va être téléchargée automatiquement avant de continuer.\n\n` +
+          `Voulez-vous vraiment continuer quand même ?`
+        );
+        if (!ok) {
+          statusEl.textContent = "Import annulé (fichier probablement obsolète).";
+          return;
+        }
+      }
+
+      // Sécurité 3 : sauvegarde automatique de la base actuelle (CSV) avant
       // tout remplacement, téléchargée sur l'ordinateur de l'agent AUTOP.
       telechargerSauvegardeCSV(ALL_DATA);
 
-      statusEl.textContent = "Envoi de " + mapped.length + " dossiers vers la base partagée…";
-      await replaceAllData(mapped);
-      ALL_DATA = mapped;
+      statusEl.textContent = "Envoi de " + mappedDedup.length + " dossiers vers la base partagée" +
+        (nbDoublons > 0 ? ` (${nbDoublons} doublons fusionnés)` : '') + "…";
+      await replaceAllData(mappedDedup);
+      ALL_DATA = mappedDedup;
       statusEl.textContent =
-        mapped.length + " dossiers importés avec succès — visibles par toutes les agences — " + new Date().toLocaleString('fr-FR');
+        mappedDedup.length + " dossiers importés avec succès" +
+        (nbDoublons > 0 ? ` (${nbDoublons} doublons fusionnés)` : '') +
+        " — visibles par toutes les agences — " + new Date().toLocaleString('fr-FR');
       renderAll();
     } catch(err){
       statusEl.textContent = "Erreur lors de l'import : " + err.message;
