@@ -155,7 +155,7 @@
     </div>
 
     <!-- KPI -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6" id="kpiRow"></div>
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6" id="kpiRow"></div>
 
     <!-- PHASE FUNNEL -->
     <div class="card p-5 mb-6">
@@ -537,13 +537,14 @@ function renderKPI(data){
   const enReparation = ouverts.filter(d => phaseOf(d.tache) === 6).length;
 
   const kpis = [
-    {label:'Dossiers totaux', value: total, icon:'folder', color:'#0e8254'},
-    {label:'Dossiers ouverts', value: ouverts.length, icon:'clock', color:'#e8891f'},
-    {label:'En attente validation', value: enAttenteValidation, icon:'hourglass', color:'#4338ca'},
-    {label:'En cours de réparation', value: enReparation, icon:'wrench', color:'#1d4ed8'}
+    {label:'Dossiers totaux', value: total, icon:'folder', color:'#0e8254', etat:''},
+    {label:'Dossiers ouverts', value: ouverts.length, icon:'clock', color:'#e8891f', etat:'Ouvert'},
+    {label:'En attente validation', value: enAttenteValidation, icon:'hourglass', color:'#4338ca', etat:'Ouvert'},
+    {label:'En cours de réparation', value: enReparation, icon:'wrench', color:'#1d4ed8', etat:'Ouvert'},
+    {label:'Dossiers annulés', value: annules, icon:'x-circle', color:'#b91c1c', etat:'Annulé'}
   ];
   document.getElementById('kpiRow').innerHTML = kpis.map(k => `
-    <div class="kpi-card">
+    <div class="kpi-card" style="cursor:pointer;" onclick="document.getElementById('fEtat').value='${k.etat}'; renderTable(scopedData());">
       <div class="kpi-icon" style="background:${k.color}1a;">
         <i data-lucide="${k.icon}" style="width:19px;height:19px;color:${k.color};"></i>
       </div>
