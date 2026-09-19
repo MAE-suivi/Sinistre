@@ -57,8 +57,7 @@
   .badge-p6{background:#d1fae5;color:#047857;}
   .badge-p7{background:#e5e7eb;color:#374151;}
   .badge-p8{background:#cffafe;color:#0e7490;}
-  .badge-p9{background:#fef9c3;color:#854d0e;}
-  .badge-p10{background:#ecfccb;color:#3f6212;}
+  .badge-p9{background:#ecfccb;color:#3f6212;}
   .filter-input, .filter-select{border:1px solid #d9dee3; border-radius:8px; padding:8px 11px; font-size:0.82rem; background:#fff;}
   .dossier-row{cursor:pointer;}
   .dossier-row:hover{background:#f4f8f6;}
@@ -163,7 +162,7 @@
       <h2 class="text-base font-bold flex items-center gap-2 mb-1" style="color:var(--navy-dark);">
         <i data-lucide="git-commit-horizontal" style="width:18px;height:18px;color:var(--navy);"></i> État d'avancement
       </h2>
-      <p class="text-xs text-slate-400 mb-4">Dossiers ouverts, répartis sur les 10 étapes du processus</p>
+      <p class="text-xs text-slate-400 mb-4">Dossiers ouverts, répartis sur les 9 étapes du processus</p>
       <div id="phaseList"></div>
     </div>
 
@@ -221,11 +220,10 @@ const PHASES = [
   "Rendez-vous de réparation fixé",
   "En cours de réparation",
   "En cours de facturation",
-  "En attente du rapport d'expertise",
   "Réception du bon de sortie et sortie du véhicule"
 ];
 
-// Associe chaque libellé de tâche détaillée (venant d'Odoo) à l'une des 10 étapes
+// Associe chaque libellé de tâche détaillée (venant d'Odoo) à l'une des 9 étapes
 const TACHE_TO_PHASE = {
   "Réception et Ouverture Dossier": 0,
   "Prise RDV pour Devis & Affectation Adhérent": 0,
@@ -256,8 +254,7 @@ const TACHE_TO_PHASE = {
   "Réception Facture Adhérent": 7,
 
   "Bon de Sortie": 8,
-
-  "Prise RDV pour Récupération Véhicule": 9
+  "Prise RDV pour Récupération Véhicule": 8
 };
 
 function phaseOf(tache){
