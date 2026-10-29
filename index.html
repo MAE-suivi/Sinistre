@@ -371,13 +371,9 @@ async function doLogin(){
 
   const code = (val.toUpperCase() === 'AUTOP') ? 'AUTOP' : val.split(' ')[0];
 
-  if (code !== 'AUTOP') {
-    const exists = ALL_DATA.some(d => agenceCode(d.agence) === code);
-    if(!exists){
-      document.getElementById('loginError').classList.remove('hidden');
-      return;
-    }
-  }
+  // Une agence sans aucun dossier (ex. 847) peut quand même se connecter :
+  // c'est la vérification serveur du mot de passe qui fait foi.
+  const hasDossiers = (code === 'AUTOP') || ALL_DATA.some(d => agenceCode(d.agence) === code);
 
   // Vérification du mot de passe cote serveur : la table des mots de passe
   // n'est plus jamais envoyee au navigateur, seule la reponse oui/non l'est.
@@ -385,7 +381,8 @@ async function doLogin(){
     p_code: code, p_password: pass
   });
   if (passErr || !passOk) {
-    document.getElementById('loginPassError').classList.remove('hidden');
+    // Code inconnu (aucun dossier) -> message "code introuvable", sinon mot de passe incorrect
+    document.getElementById(hasDossiers ? 'loginPassError' : 'loginError').classList.remove('hidden');
     return;
   }
 
@@ -699,6 +696,10 @@ function renderTable(data){
       <td>${etatBadge}</td>
     </tr>`;
   }).join('');
+  if (filtered.length === 0) {
+    document.getElementById('tableBody').innerHTML =
+      '<tr><td colspan="7" style="text-align:center;padding:24px;color:#64748b;">Aucun dossier à afficher pour le moment.</td></tr>';
+  }
   document.getElementById('pageInfo').textContent = filtered.length > 300
     ? `Affichage des 300 premiers dossiers sur ${filtered.length} (utilisez la recherche pour affiner)`
     : '';
